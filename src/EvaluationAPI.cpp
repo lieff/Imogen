@@ -835,3 +835,8 @@ unsigned int Evaluation::GetTexture(const std::string& filename)
 	mSynchronousTextureCache[filename] = textureId;
 	return textureId;
 }
+
+void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd* cmd)
+{
+
+}

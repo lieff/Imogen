@@ -35,6 +35,9 @@
 
 extern int Log(const char *szFormat, ...);
 
+struct ImDrawList;
+struct ImDrawCmd;
+
 typedef unsigned int TextureID;
 enum EvaluationStatus
 {
@@ -122,6 +125,7 @@ struct Evaluation
 	static int ReadMesh(char *filename, Mesh *mesh);
 	static int SetEvaluationMesh(int target, Mesh *mesh);
 
+	static void MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd* cmd); 
 
 	// synchronous texture cache
 	// use for simple textures(stock) or to replace with a more efficient one

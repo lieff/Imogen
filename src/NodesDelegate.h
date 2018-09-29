@@ -110,6 +110,16 @@ struct TileNodeEditGraphDelegate : public NodeGraphDelegate
 	{
 		return mEvaluation.GetEvaluationTexture(mNodes[index].mEvaluationTarget);
 	}
+	
+	virtual ImDrawCallback GetCallBack(size_t index)
+	{
+		int metaNodeCount;
+		const MetaNode* metaNodes = GetMetaNodes(metaNodeCount);
+		if (metaNodes[mNodes[index].mType].mOutputs[0].mType == Con_Mesh)
+			return Evaluation::MeshDrawCallBack;
+		return 0;
+	}
+
 	virtual void AddNode(size_t type)
 	{
 		int metaNodeCount;

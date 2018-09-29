@@ -26,6 +26,7 @@
 #pragma once
 #include <vector>
 #include <stdint.h>
+
 struct NodeGraphDelegate
 {
 	NodeGraphDelegate() : mSelectedNodeIndex(-1), mBakeTargetIndex(-1), mCategoriesCount(0), mCategories(0)
@@ -47,6 +48,8 @@ struct NodeGraphDelegate
 	virtual void AddNode(size_t type) = 0;
 	// node deleted
 	virtual void DeleteNode(size_t index) = 0;
+
+	virtual ImDrawCallback GetCallBack(size_t index) = 0;
 
 	virtual unsigned char *GetParamBlock(size_t index, size_t& paramBlockSize) = 0;
 	virtual void SetParamBlock(size_t index, unsigned char* paramBlock) = 0;
