@@ -77,6 +77,7 @@ struct TileNodeEditGraphDelegate : public NodeGraphDelegate
 		Con_FilenameRead,
 		Con_FilenameWrite,
 		Con_ForceEvaluate,
+		Con_Mesh,
 		Con_Any,
 	};
 
@@ -165,9 +166,9 @@ struct TileNodeEditGraphDelegate : public NodeGraphDelegate
 		static const uint32_t hcNoise = IM_COL32(150, 250, 150, 255);
 
 
-		metaNodeCount = 26;
+		metaNodeCount = 27;
 
-		static const MetaNode metaNodes[26] = {
+		static const MetaNode metaNodes[27] = {
 
 			{
 				"Circle", hcGenerator, 1
@@ -375,6 +376,14 @@ struct TileNodeEditGraphDelegate : public NodeGraphDelegate
 					,{ { "", (int)Con_Float4 } }
 				,{}
 				,{ { "Make", (int)Con_ForceEvaluate } }
+				}
+
+				,
+				{
+					"MeshRead", hcFilter, 6
+					,{ { "", (int)Con_Mesh } }
+				,{}
+				,{ { "File name", (int)Con_FilenameRead } }
 				}
 			};
 

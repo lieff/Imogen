@@ -35,7 +35,11 @@
 #include "stb_image_write.h"
 #include <fstream>
 #include <streambuf>
-
+#define TINYGLTF_IMPLEMENTATION
+#define TINYGLTF_NO_STB_IMAGE
+#define TINYGLTF_NO_STB_IMAGE_WRITE
+#include "tiny_gltf.h"
+#include "tiny_obj_loader.h"
 
 static const int SemUV0 = 0;
 static const unsigned int wrap[] = { GL_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT };
@@ -330,6 +334,51 @@ int Evaluation::ReadImage(const char *filename, Image *image)
 	return EVAL_OK;
 }
 
+
+
+static std::string GetFilePathExtension(const std::string &FileName) {
+	if (FileName.find_last_of(".") != std::string::npos)
+		return FileName.substr(FileName.find_last_of(".") + 1);
+	return "";
+}
+
+int Evaluation::ReadMesh(char *filename, Mesh *mesh)
+{
+	tinygltf::Model model;
+	tinygltf::TinyGLTF gltf_ctx;
+	std::string err;
+	std::string warn;
+	std::string ext = GetFilePathExtension(filename);
+
+	bool ret = false;
+	if (ext.compare("glb") == 0) {
+		ret = gltf_ctx.LoadBinaryFromFile(&model, &err, &warn, filename);
+	}
+	else {
+		ret = gltf_ctx.LoadASCIIFromFile(&model, &err, &warn, filename);
+	}
+
+	if (!warn.empty()) {
+		Log("Warn: %s\n", warn.c_str());
+	}
+
+
+	if (!err.empty()) {
+		Log("Err: %s\n", err.c_str());
+	}
+
+	if (!ret) {
+		Log("Failed to parse glTF\n");
+		return EVAL_ERR;
+	}
+	return EVAL_OK;
+}
+
+int Evaluation::SetEvaluationMesh(int target, Mesh *mesh)
+{
+	return EVAL_OK;
+}
+
 int Evaluation::WriteImage(const char *filename, Image *image, int format, int quality)
 {
 	switch (format)
@@ -522,7 +571,9 @@ static const EValuationFunction evaluationFunctions[] = {
 	{ "AllocateImage", (void*)Evaluation::AllocateImage },
 	{ "FreeImage", (void*)Evaluation::FreeImage },
 	{ "SetThumbnailImage", (void*)Evaluation::SetThumbnailImage },
-	{ "Evaluate", (void*)Evaluation::Evaluate}
+	{ "Evaluate", (void*)Evaluation::Evaluate},
+	{ "ReadMesh", (void*)Evaluation::ReadMesh },
+	{ "SetEvaluationMesh", (void*)Evaluation::SetEvaluationMesh }
 };
 
 static const char* samplerName[] = { "Sampler0", "Sampler1", "Sampler2", "Sampler3", "Sampler4", "Sampler5", "Sampler6", "Sampler7" };

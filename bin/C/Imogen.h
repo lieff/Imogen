@@ -14,6 +14,11 @@ typedef struct Evaluation_t
 	int forcedDirty;
 } Evaluation;
 
+typedef struct Mesh_t
+{
+	int dummy;
+} Mesh;
+
 // call FreeImage when done
 int ReadImage(char *filename, Image *image);
 // writes an allocated image
@@ -35,5 +40,8 @@ int SetThumbnailImage(Image *image);
 // no guarantee that the resulting Image will have that size.
 void Evaluate(int target, int width, int height);
 
+
+int ReadMesh(char *filename, Mesh *mesh);
+int SetEvaluationMesh(int target, Mesh *mesh);
 #define EVAL_OK 0
 #define EVAL_ERR 1

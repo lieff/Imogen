@@ -49,6 +49,11 @@ typedef struct Image_t
 	void *bits;
 } Image;
 
+struct Mesh
+{
+	int dummy;
+};
+
 class RenderTarget
 {
 
@@ -114,6 +119,9 @@ struct Evaluation
 	static int FreeImage(Image *image);
 	static unsigned int UploadImage(Image *image);
 	static void Evaluate(int target, int width, int height);
+	static int ReadMesh(char *filename, Mesh *mesh);
+	static int SetEvaluationMesh(int target, Mesh *mesh);
+
 
 	// synchronous texture cache
 	// use for simple textures(stock) or to replace with a more efficient one

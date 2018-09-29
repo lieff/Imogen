@@ -20,7 +20,8 @@ file(GLOB EXT_FILES
     ${CMAKE_SOURCE_DIR}/ext/*.cpp
 	${CMAKE_SOURCE_DIR}/ext/gl3w/GL/*.c
 	${CMAKE_SOURCE_DIR}/ext/enkiTS-C-11/src/*.cpp
-${CMAKE_SOURCE_DIR}/ext/NativeFileDialog/src/nfd_common.c
+	${CMAKE_SOURCE_DIR}/ext/syoyo/*.cc
+	${CMAKE_SOURCE_DIR}/ext/NativeFileDialog/src/nfd_common.c
 )
 
 if(WIN32)
@@ -51,6 +52,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/tcc-0.9.27/
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/NativeFileDialog/src/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/enkiTS-C-11/src/
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/syoyo/
 )
 
 link_directories(
