@@ -52,9 +52,28 @@ typedef struct Image_t
 	void *bits;
 } Image;
 
+
+struct MeshOGL
+{
+	struct DrawCall
+	{
+		unsigned int mIndexArray;
+		unsigned int mVAO;
+
+		int mode;
+		size_t count;
+		int componentType;
+		char *indices;
+	};
+
+	std::vector<unsigned int> mBufers;
+	std::vector<DrawCall> mDCs;
+};
+
 struct Mesh
 {
-	int dummy;
+	int meshIndex;
+
 };
 
 class RenderTarget

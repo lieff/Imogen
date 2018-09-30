@@ -40,8 +40,12 @@
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #include "tiny_gltf.h"
 #include "tiny_obj_loader.h"
+#include "imgui.h"
+#include "imgui_internal.h"
 
-static const int SemUV0 = 0;
+static const int SemPosition = 0;
+static const int SemNormal = 1;
+static const int SemUV = 2;
 static const unsigned int wrap[] = { GL_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT };
 static const unsigned int filter[] = { GL_LINEAR, GL_NEAREST };
 
@@ -186,8 +190,8 @@ void FullScreenTriangle::Init()
 	glGenVertexArrays(1, &mGLFullScreenVertexArrayName);
 	glBindVertexArray(mGLFullScreenVertexArrayName);
 	glBindBuffer(GL_ARRAY_BUFFER, fsVA);
-	glVertexAttribPointer(SemUV0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(SemUV0);
+	glVertexAttribPointer(SemUV, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(SemUV);
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -207,7 +211,17 @@ unsigned int LoadShader(const std::string &shaderString, const char *fileName)
 		return 0;
 
 	GLint compiled;
-	const char *shaderTypeStrings[] = { "\n#version 430 core\n#define VERTEX_SHADER\n", "\n#version 430 core\n#define FRAGMENT_SHADER\n" };
+	static const char *shaderTypeStrings[] = { "\n#version 430 core\n#define VERTEX_SHADER\n", "\n#version 430 core\n#define FRAGMENT_SHADER\n" };
+	static const char *passShader = {
+	"layout(location = 0)in vec4 inPosition;\n"
+	"layout(location = 1)in vec3 inNormal;\n"
+	//"layout(location = 2)in vec2 inUV;\n"
+	"layout(std140) uniform PassUniform\n"
+	"{\n"
+	"	mat4 ViewProjection;\n"
+	"};\n"
+	};
+
 	TextureID shaderTypes[] = { GL_VERTEX_SHADER, GL_FRAGMENT_SHADER };
 	TextureID compiledShader[2];
 
@@ -219,11 +233,13 @@ unsigned int LoadShader(const std::string &shaderString, const char *fileName)
 		if (shader == 0)
 			return false;
 
-		int stringsCount = 2;
+		int stringsCount = 3;
 		const char ** strings = (const char**)malloc(sizeof(char*) * stringsCount); //new const char*[stringsCount];
 		int * stringLength = (int*)malloc(sizeof(int) * stringsCount); //new int[stringsCount];
 		strings[0] = shaderTypeStrings[i];
 		stringLength[0] = int(strlen(shaderTypeStrings[i]));
+		strings[1] = passShader;
+		stringLength[1] = int(strlen(passShader));
 		strings[stringsCount - 1] = shaderString.c_str();
 		stringLength[stringsCount - 1] = int(shaderString.length());
 
@@ -267,7 +283,9 @@ unsigned int LoadShader(const std::string &shaderString, const char *fileName)
 	// Link the program
 	glLinkProgram(programObject);
 
-	glBindAttribLocation(programObject, SemUV0, "inUV");
+	glBindAttribLocation(programObject, SemUV, "inUV");
+	glBindAttribLocation(programObject, SemPosition, "inPosition");
+	glBindAttribLocation(programObject, SemNormal, "inNormal");
 
 	// Check the link status
 	glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
@@ -342,6 +360,10 @@ static std::string GetFilePathExtension(const std::string &FileName) {
 	return "";
 }
 
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
+
+std::map<std::string, MeshOGL> mOGLMeshes;
+
 int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 {
 	tinygltf::Model model;
@@ -371,7 +393,398 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 		Log("Failed to parse glTF\n");
 		return EVAL_ERR;
 	}
+
+	MeshOGL oglMesh;
+	/*
+	glBindBuffer(GL_ARRAY_BUFFER, fsVA);
+	glVertexAttribPointer(SemUV0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(SemUV0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	*/
+
+	std::vector<unsigned int> bufs(model.bufferViews.size());
+	{
+		for (size_t i = 0; i < model.bufferViews.size(); i++) 
+		{
+			const tinygltf::BufferView &bufferView = model.bufferViews[i];
+			if (bufferView.target == 0) 
+			{
+				//std::cout << "WARN: bufferView.target is zero" << std::endl;
+				continue;  // Unsupported bufferView.
+			}
+
+			const tinygltf::Buffer &buffer = model.buffers[bufferView.buffer];
+			unsigned int state;
+			glGenBuffers(1, &state);
+			glBindBuffer(bufferView.target, state);
+			//std::cout << "buffer.size= " << buffer.data.size()
+			//	<< ", byteOffset = " << bufferView.byteOffset << std::endl;
+			glBufferData(bufferView.target, bufferView.byteLength,
+				&buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+			glBindBuffer(bufferView.target, 0);
+
+			bufs[i] = state;
+			//gBufferState[i] = state;
+		}
+	}
+	oglMesh.mBufers = bufs;
+	/*
+	gGLProgramState.attribs["POSITION"] = vtloc;
+	gGLProgramState.attribs["NORMAL"] = nrmloc;
+	gGLProgramState.attribs["TEXCOORD_0"] = uvloc;
+	*/
+
+	for (auto& mesh : model.meshes)
+	{
+		for (size_t i = 0; i < mesh.primitives.size(); i++) 
+		{
+			const tinygltf::Primitive &primitive = mesh.primitives[i];
+
+			if (primitive.indices < 0) return EVAL_ERR;
+
+			// Assume TEXTURE_2D target for the texture object.
+			// glBindTexture(GL_TEXTURE_2D, gMeshState[mesh.name].diffuseTex[i]);
+
+			std::map<std::string, int>::const_iterator it(primitive.attributes.begin());
+			std::map<std::string, int>::const_iterator itEnd(primitive.attributes.end());
+
+			unsigned int mGLFullScreenVertexArrayName;
+
+			glGenVertexArrays(1, &mGLFullScreenVertexArrayName);
+			glBindVertexArray(mGLFullScreenVertexArrayName);
+
+
+			for (; it != itEnd; it++) 
+			{
+				assert(it->second >= 0);
+				const tinygltf::Accessor &accessor = model.accessors[it->second];
+				glBindBuffer(GL_ARRAY_BUFFER, bufs[accessor.bufferView]);
+				//CheckErrors("bind buffer");
+				int size = 1;
+				if (accessor.type == TINYGLTF_TYPE_SCALAR) {
+					size = 1;
+				}
+				else if (accessor.type == TINYGLTF_TYPE_VEC2) {
+					size = 2;
+				}
+				else if (accessor.type == TINYGLTF_TYPE_VEC3) {
+					size = 3;
+				}
+				else if (accessor.type == TINYGLTF_TYPE_VEC4) {
+					size = 4;
+				}
+				else {
+					assert(0);
+				}
+				int state = -1;
+				if (it->first.compare("POSITION") == 0)
+					state = 0;
+				if (it->first.compare("NORMAL") == 0)
+					state = 1;
+				if (it->first.compare("TEXCOORD_0") == 0)
+					state = 2;
+
+				// it->first would be "POSITION", "NORMAL", "TEXCOORD_0", ...
+				if (state != -1) 
+				{
+					//if (gGLProgramState.attribs[it->first] >= 0) 
+					{
+						// Compute byteStride from Accessor + BufferView combination.
+						int byteStride = accessor.ByteStride(model.bufferViews[accessor.bufferView]);
+						assert(byteStride != -1);
+						
+						glVertexAttribPointer(state, size,
+							accessor.componentType, accessor.normalized ? GL_TRUE : GL_FALSE,
+							byteStride,
+							BUFFER_OFFSET(accessor.byteOffset));
+						//CheckErrors("vertex attrib pointer");
+						glEnableVertexAttribArray(state);
+						//CheckErrors("enable vertex attrib array");
+					}
+				}
+			}
+			glBindVertexArray(0);
+
+			const tinygltf::Accessor &indexAccessor = model.accessors[primitive.indices];
+
+			int mode = -1;
+			if (primitive.mode == TINYGLTF_MODE_TRIANGLES) {
+				mode = GL_TRIANGLES;
+			}
+			else if (primitive.mode == TINYGLTF_MODE_TRIANGLE_STRIP) {
+				mode = GL_TRIANGLE_STRIP;
+			}
+			else if (primitive.mode == TINYGLTF_MODE_TRIANGLE_FAN) {
+				mode = GL_TRIANGLE_FAN;
+			}
+			else if (primitive.mode == TINYGLTF_MODE_POINTS) {
+				mode = GL_POINTS;
+			}
+			else if (primitive.mode == TINYGLTF_MODE_LINE) {
+				mode = GL_LINES;
+			}
+			else if (primitive.mode == TINYGLTF_MODE_LINE_LOOP) {
+				mode = GL_LINE_LOOP;
+			}
+			else {
+				assert(0);
+			}
+				
+			oglMesh.mDCs.push_back({ bufs[indexAccessor.bufferView], mGLFullScreenVertexArrayName, mode, indexAccessor.count, indexAccessor.componentType,
+				BUFFER_OFFSET(indexAccessor.byteOffset) });
+		}
+	}
+	mOGLMeshes[filename] = oglMesh;
+	mesh->meshIndex = 0;
 	return EVAL_OK;
+}
+
+void RenderMesh(MeshOGL *mesh)
+{
+	for (auto& dc : mesh->mDCs)
+	{
+		glBindVertexArray(dc.mVAO);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dc.mIndexArray);
+		glDrawElements(dc.mode, dc.count, dc.componentType, dc.indices);
+	}
+	glBindVertexArray(0);
+}
+
+void Frustum(float left, float right, float bottom, float top, float znear, float zfar, float *m16)
+{
+	float temp, temp2, temp3, temp4;
+	temp = 2.0f * znear;
+	temp2 = right - left;
+	temp3 = top - bottom;
+	temp4 = zfar - znear;
+	m16[0] = temp / temp2;
+	m16[1] = 0.0;
+	m16[2] = 0.0;
+	m16[3] = 0.0;
+	m16[4] = 0.0;
+	m16[5] = temp / temp3;
+	m16[6] = 0.0;
+	m16[7] = 0.0;
+	m16[8] = (right + left) / temp2;
+	m16[9] = (top + bottom) / temp3;
+	m16[10] = (-zfar - znear) / temp4;
+	m16[11] = -1.0f;
+	m16[12] = 0.0;
+	m16[13] = 0.0;
+	m16[14] = (-temp * zfar) / temp4;
+	m16[15] = 0.0;
+}
+
+void Perspective(float fovyInDegrees, float aspectRatio, float znear, float zfar, float *m16)
+{
+	float ymax, xmax;
+	ymax = znear * tanf(fovyInDegrees * 3.141592f / 180.0f);
+	xmax = ymax * aspectRatio;
+	Frustum(-xmax, xmax, -ymax, ymax, znear, zfar, m16);
+}
+
+
+void Cross(const float* a, const float* b, float* r)
+{
+	r[0] = a[1] * b[2] - a[2] * b[1];
+	r[1] = a[2] * b[0] - a[0] * b[2];
+	r[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+float Dot(const float* a, const float* b)
+{
+	return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+void Normalize(const float* a, float *r)
+{
+	float il = 1.f / (sqrtf(Dot(a, a)) + FLT_EPSILON);
+	r[0] = a[0] * il;
+	r[1] = a[1] * il;
+	r[2] = a[2] * il;
+}
+
+
+void LookAt(const float* eye, const float* at, const float* up, float *m16)
+{
+	float X[3], Y[3], Z[3], tmp[3];
+
+	tmp[0] = eye[0] - at[0];
+	tmp[1] = eye[1] - at[1];
+	tmp[2] = eye[2] - at[2];
+	//Z.normalize(eye - at);
+	Normalize(tmp, Z);
+	Normalize(up, Y);
+	//Y.normalize(up);
+
+	Cross(Y, Z, tmp);
+	//tmp.cross(Y, Z);
+	Normalize(tmp, X);
+	//X.normalize(tmp);
+
+	Cross(Z, X, tmp);
+	//tmp.cross(Z, X);
+	Normalize(tmp, Y);
+	//Y.normalize(tmp);
+
+	m16[0] = X[0];
+	m16[1] = Y[0];
+	m16[2] = Z[0];
+	m16[3] = 0.0f;
+	m16[4] = X[1];
+	m16[5] = Y[1];
+	m16[6] = Z[1];
+	m16[7] = 0.0f;
+	m16[8] = X[2];
+	m16[9] = Y[2];
+	m16[10] = Z[2];
+	m16[11] = 0.0f;
+	m16[12] = -Dot(X, eye);
+	m16[13] = -Dot(Y, eye);
+	m16[14] = -Dot(Z, eye);
+	m16[15] = 1.0f;
+}
+
+inline void FPU_MatrixF_x_MatrixF(const float *a, const float *b, float *r)
+{
+	r[0] = a[0] * b[0] + a[1] * b[4] + a[2] * b[8] + a[3] * b[12];
+	r[1] = a[0] * b[1] + a[1] * b[5] + a[2] * b[9] + a[3] * b[13];
+	r[2] = a[0] * b[2] + a[1] * b[6] + a[2] * b[10] + a[3] * b[14];
+	r[3] = a[0] * b[3] + a[1] * b[7] + a[2] * b[11] + a[3] * b[15];
+
+	r[4] = a[4] * b[0] + a[5] * b[4] + a[6] * b[8] + a[7] * b[12];
+	r[5] = a[4] * b[1] + a[5] * b[5] + a[6] * b[9] + a[7] * b[13];
+	r[6] = a[4] * b[2] + a[5] * b[6] + a[6] * b[10] + a[7] * b[14];
+	r[7] = a[4] * b[3] + a[5] * b[7] + a[6] * b[11] + a[7] * b[15];
+
+	r[8] = a[8] * b[0] + a[9] * b[4] + a[10] * b[8] + a[11] * b[12];
+	r[9] = a[8] * b[1] + a[9] * b[5] + a[10] * b[9] + a[11] * b[13];
+	r[10] = a[8] * b[2] + a[9] * b[6] + a[10] * b[10] + a[11] * b[14];
+	r[11] = a[8] * b[3] + a[9] * b[7] + a[10] * b[11] + a[11] * b[15];
+
+	r[12] = a[12] * b[0] + a[13] * b[4] + a[14] * b[8] + a[15] * b[12];
+	r[13] = a[12] * b[1] + a[13] * b[5] + a[14] * b[9] + a[15] * b[13];
+	r[14] = a[12] * b[2] + a[13] * b[6] + a[14] * b[10] + a[15] * b[14];
+	r[15] = a[12] * b[3] + a[13] * b[7] + a[14] * b[11] + a[15] * b[15];
+}
+
+
+void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd* cmd)
+{
+	// Backup GL state
+	GLenum last_active_texture; glGetIntegerv(GL_ACTIVE_TEXTURE, (GLint*)&last_active_texture);
+	glActiveTexture(GL_TEXTURE0);
+	GLint last_program; glGetIntegerv(GL_CURRENT_PROGRAM, &last_program);
+	GLint last_texture; glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
+#ifdef GL_SAMPLER_BINDING
+	GLint last_sampler; glGetIntegerv(GL_SAMPLER_BINDING, &last_sampler);
+#endif
+	GLint last_array_buffer; glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &last_array_buffer);
+	GLint last_vertex_array; glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &last_vertex_array);
+#ifdef GL_POLYGON_MODE
+	GLint last_polygon_mode[2]; glGetIntegerv(GL_POLYGON_MODE, last_polygon_mode);
+#endif
+	GLint last_viewport[4]; glGetIntegerv(GL_VIEWPORT, last_viewport);
+	GLint last_scissor_box[4]; glGetIntegerv(GL_SCISSOR_BOX, last_scissor_box);
+	GLenum last_blend_src_rgb; glGetIntegerv(GL_BLEND_SRC_RGB, (GLint*)&last_blend_src_rgb);
+	GLenum last_blend_dst_rgb; glGetIntegerv(GL_BLEND_DST_RGB, (GLint*)&last_blend_dst_rgb);
+	GLenum last_blend_src_alpha; glGetIntegerv(GL_BLEND_SRC_ALPHA, (GLint*)&last_blend_src_alpha);
+	GLenum last_blend_dst_alpha; glGetIntegerv(GL_BLEND_DST_ALPHA, (GLint*)&last_blend_dst_alpha);
+	GLenum last_blend_equation_rgb; glGetIntegerv(GL_BLEND_EQUATION_RGB, (GLint*)&last_blend_equation_rgb);
+	GLenum last_blend_equation_alpha; glGetIntegerv(GL_BLEND_EQUATION_ALPHA, (GLint*)&last_blend_equation_alpha);
+	GLboolean last_enable_blend = glIsEnabled(GL_BLEND);
+	GLboolean last_enable_cull_face = glIsEnabled(GL_CULL_FACE);
+	GLboolean last_enable_depth_test = glIsEnabled(GL_DEPTH_TEST);
+	GLboolean last_enable_scissor_test = glIsEnabled(GL_SCISSOR_TEST);
+	ImGuiIO& io = ImGui::GetIO();
+	extern std::vector<ImRect> mCallbackRects;
+	ImRect cbRect = mCallbackRects[int(cmd->UserCallbackData)];
+	float h = cbRect.Max.y - cbRect.Min.y;
+	float w = cbRect.Max.x - cbRect.Min.x;
+	glViewport(cbRect.Min.x, io.DisplaySize.y - cbRect.Max.y, w, h);
+	glScissor(cbRect.Min.x, io.DisplaySize.y - cbRect.Max.y, w, h);
+	glEnable(GL_SCISSOR_BOX);
+
+	glClearColor(0, 0, 0, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	struct PassBuffer
+	{
+		float ViewProj[16];
+	};
+	PassBuffer passBuffer;
+	static unsigned int meshDisplayShader = 0;
+	static unsigned int parametersBuffer = 0;
+	if (meshDisplayShader == 0)
+	{
+		std::string meshShader = { ""
+"#ifdef VERTEX_SHADER\n"
+"		void main()\n"
+"		{\n"
+"			mat4 transformViewProj = ViewProjection;\n"
+"			gl_Position = transformViewProj * vec4(inPosition.xyz, 1.0);\n"
+"		}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"layout(location = 0) out vec4 outPixDiffuse;"
+"		void main()\n"
+"		{\n"
+"			outPixDiffuse = vec4(1.0,0.0,1.0,1.0);\n"
+"		}\n"
+"#endif\n"
+		};
+		meshDisplayShader = LoadShader(meshShader, "shaderMesh");
+
+
+		glGenBuffers(1, &parametersBuffer);
+		glBindBuffer(GL_UNIFORM_BUFFER, parametersBuffer);
+
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(passBuffer), &passBuffer, GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_UNIFORM_BUFFER, 0, parametersBuffer);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+	}
+
+	float perspectiveMat[16], viewMat[16];
+
+	Perspective(53, w / h, 0.01, 1000.f, perspectiveMat);
+	float eye[3] = { 2.f, 2.f, 2.f };
+	float tgt[3] = { 0.f, 0.f, 0.f };
+	float up[3] = { 0.f, 1.f, 0.f };
+	LookAt(eye, tgt, up, viewMat);
+	FPU_MatrixF_x_MatrixF(viewMat, perspectiveMat, passBuffer.ViewProj);
+
+	glUseProgram(meshDisplayShader);
+
+	glBindBuffer(GL_UNIFORM_BUFFER, parametersBuffer);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(passBuffer), &passBuffer);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+
+	RenderMesh(&mOGLMeshes.begin()->second);
+
+	// Restore modified GL state
+	glUseProgram(last_program);
+	glBindTexture(GL_TEXTURE_2D, last_texture);
+#ifdef GL_SAMPLER_BINDING
+	glBindSampler(0, last_sampler);
+#endif
+	glActiveTexture(last_active_texture);
+	glBindVertexArray(last_vertex_array);
+	glBindBuffer(GL_ARRAY_BUFFER, last_array_buffer);
+	glBlendEquationSeparate(last_blend_equation_rgb, last_blend_equation_alpha);
+	glBlendFuncSeparate(last_blend_src_rgb, last_blend_dst_rgb, last_blend_src_alpha, last_blend_dst_alpha);
+	if (last_enable_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+	if (last_enable_cull_face) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+	if (last_enable_depth_test) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+	if (last_enable_scissor_test) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
+#ifdef GL_POLYGON_MODE
+	glPolygonMode(GL_FRONT_AND_BACK, (GLenum)last_polygon_mode[0]);
+#endif
+	glViewport(last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3]);
+	glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]);
+
 }
 
 int Evaluation::SetEvaluationMesh(int target, Mesh *mesh)
@@ -836,7 +1249,3 @@ unsigned int Evaluation::GetTexture(const std::string& filename)
 	return textureId;
 }
 
-void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd* cmd)
-{
-
-}

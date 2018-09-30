@@ -3,7 +3,7 @@
 
 #ifdef VERTEX_SHADER
 
-layout(location = 0)in vec2 inUV;
+layout(location = 2)in vec2 inUV;
 out vec2 vUV;
 
 void main()
