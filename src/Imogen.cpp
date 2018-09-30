@@ -276,7 +276,7 @@ struct DecodeThumbnailTaskSet : enki::ITaskSet
 	virtual void    ExecuteRange(enki::TaskSetPartition range, uint32_t threadnum)
 	{
 		Image image;
-		unsigned char *data = stbi_load_from_memory(mSrc->data(), mSrc->size(), &image.width, &image.height, &image.components, 0);
+		unsigned char *data = stbi_load_from_memory(mSrc->data(), int(mSrc->size()), &image.width, &image.height, &image.components, 0);
 		if (data)
 		{
 			image.bits = data;
