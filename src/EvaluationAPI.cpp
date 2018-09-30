@@ -49,6 +49,23 @@ static const int SemUV = 2;
 static const unsigned int wrap[] = { GL_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT };
 static const unsigned int filter[] = { GL_LINEAR, GL_NEAREST };
 
+static const EValuationFunction evaluationFunctions[] = {
+	{ "Log", (void*)Log },
+	{ "ReadImage", (void*)Evaluation::ReadImage },
+	{ "WriteImage", (void*)Evaluation::WriteImage },
+	{ "GetEvaluationImage", (void*)Evaluation::GetEvaluationImage },
+	{ "SetEvaluationImage", (void*)Evaluation::SetEvaluationImage },
+	{ "AllocateImage", (void*)Evaluation::AllocateImage },
+	{ "FreeImage", (void*)Evaluation::FreeImage },
+	{ "SetThumbnailImage", (void*)Evaluation::SetThumbnailImage },
+	{ "Evaluate", (void*)Evaluation::Evaluate },
+	{ "ReadMesh", (void*)Evaluation::ReadMesh },
+	{ "SetEvaluationMesh", (void*)Evaluation::SetEvaluationMesh }
+};
+
+static const char* samplerName[] = { "Sampler0", "Sampler1", "Sampler2", "Sampler3", "Sampler4", "Sampler5", "Sampler6", "Sampler7" };
+
+
 inline void TexParam(TextureID MinFilter, TextureID MagFilter, TextureID WrapS, TextureID WrapT, TextureID texMode)
 {
 	glTexParameteri(texMode, GL_TEXTURE_MIN_FILTER, MinFilter);
@@ -380,13 +397,6 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 	}
 
 	MeshOGL oglMesh;
-	/*
-	glBindBuffer(GL_ARRAY_BUFFER, fsVA);
-	glVertexAttribPointer(SemUV0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(SemUV0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	*/
 
 	std::vector<unsigned int> bufs(model.bufferViews.size());
 	{
@@ -395,7 +405,7 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 			const tinygltf::BufferView &bufferView = model.bufferViews[i];
 			if (bufferView.target == 0) 
 			{
-				//std::cout << "WARN: bufferView.target is zero" << std::endl;
+				Log("WARN: GLTF bufferView.target is zero\n");
 				continue;  // Unsupported bufferView.
 			}
 
@@ -403,22 +413,12 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 			unsigned int state;
 			glGenBuffers(1, &state);
 			glBindBuffer(bufferView.target, state);
-			//std::cout << "buffer.size= " << buffer.data.size()
-			//	<< ", byteOffset = " << bufferView.byteOffset << std::endl;
-			glBufferData(bufferView.target, bufferView.byteLength,
-				&buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+			glBufferData(bufferView.target, bufferView.byteLength, &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
 			glBindBuffer(bufferView.target, 0);
-
 			bufs[i] = state;
-			//gBufferState[i] = state;
 		}
 	}
 	oglMesh.mBufers = bufs;
-	/*
-	gGLProgramState.attribs["POSITION"] = vtloc;
-	gGLProgramState.attribs["NORMAL"] = nrmloc;
-	gGLProgramState.attribs["TEXCOORD_0"] = uvloc;
-	*/
 
 	for (auto& mesh : model.meshes)
 	{
@@ -426,10 +426,8 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 		{
 			const tinygltf::Primitive &primitive = mesh.primitives[i];
 
-			if (primitive.indices < 0) return EVAL_ERR;
-
-			// Assume TEXTURE_2D target for the texture object.
-			// glBindTexture(GL_TEXTURE_2D, gMeshState[mesh.name].diffuseTex[i]);
+			if (primitive.indices < 0) 
+				return EVAL_ERR;
 
 			std::map<std::string, int>::const_iterator it(primitive.attributes.begin());
 			std::map<std::string, int>::const_iterator itEnd(primitive.attributes.end());
@@ -439,13 +437,11 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 			glGenVertexArrays(1, &mGLFullScreenVertexArrayName);
 			glBindVertexArray(mGLFullScreenVertexArrayName);
 
-
 			for (; it != itEnd; it++) 
 			{
 				assert(it->second >= 0);
 				const tinygltf::Accessor &accessor = model.accessors[it->second];
 				glBindBuffer(GL_ARRAY_BUFFER, bufs[accessor.bufferView]);
-				//CheckErrors("bind buffer");
 				int size = 1;
 				if (accessor.type == TINYGLTF_TYPE_SCALAR) {
 					size = 1;
@@ -470,23 +466,17 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 				if (it->first.compare("TEXCOORD_0") == 0)
 					state = 2;
 
-				// it->first would be "POSITION", "NORMAL", "TEXCOORD_0", ...
 				if (state != -1) 
 				{
-					//if (gGLProgramState.attribs[it->first] >= 0) 
-					{
-						// Compute byteStride from Accessor + BufferView combination.
-						int byteStride = accessor.ByteStride(model.bufferViews[accessor.bufferView]);
-						assert(byteStride != -1);
+					// Compute byteStride from Accessor + BufferView combination.
+					int byteStride = accessor.ByteStride(model.bufferViews[accessor.bufferView]);
+					assert(byteStride != -1);
 						
-						glVertexAttribPointer(state, size,
-							accessor.componentType, accessor.normalized ? GL_TRUE : GL_FALSE,
-							byteStride,
-							BUFFER_OFFSET(accessor.byteOffset));
-						//CheckErrors("vertex attrib pointer");
-						glEnableVertexAttribArray(state);
-						//CheckErrors("enable vertex attrib array");
-					}
+					glVertexAttribPointer(state, size,
+						accessor.componentType, accessor.normalized ? GL_TRUE : GL_FALSE,
+						byteStride,
+						BUFFER_OFFSET(accessor.byteOffset));
+					glEnableVertexAttribArray(state);
 				}
 			}
 			glBindVertexArray(0);
@@ -536,8 +526,6 @@ void RenderMesh(MeshOGL *mesh)
 	glBindVertexArray(0);
 }
 
-
-
 void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd* cmd)
 {
 	// Backup GL state
@@ -570,7 +558,6 @@ void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd
 	ImRect cbRect = mCallbackRects[int(cmd->UserCallbackData)];
 	float h = cbRect.Max.y - cbRect.Min.y;
 	float w = cbRect.Max.x - cbRect.Min.x;
-
 
 	glViewport(int(cbRect.Min.x), int(io.DisplaySize.y - cbRect.Max.y), int(w), int(h));
 	
@@ -658,7 +645,6 @@ void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd
 #endif
 	glViewport(last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3]);
 	glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]);
-
 }
 
 int Evaluation::SetEvaluationMesh(int target, Mesh *mesh)
@@ -848,33 +834,6 @@ void Evaluation::RunEvaluation(int target, int width, int height)
 	}
 	FinishEvaluation();
 }
-
-static const EValuationFunction evaluationFunctions[] = {
-	{ "Log", (void*)Log },
-	{ "ReadImage", (void*)Evaluation::ReadImage },
-	{ "WriteImage", (void*)Evaluation::WriteImage },
-	{ "GetEvaluationImage", (void*)Evaluation::GetEvaluationImage },
-	{ "SetEvaluationImage", (void*)Evaluation::SetEvaluationImage },
-	{ "AllocateImage", (void*)Evaluation::AllocateImage },
-	{ "FreeImage", (void*)Evaluation::FreeImage },
-	{ "SetThumbnailImage", (void*)Evaluation::SetThumbnailImage },
-	{ "Evaluate", (void*)Evaluation::Evaluate},
-	{ "ReadMesh", (void*)Evaluation::ReadMesh },
-	{ "SetEvaluationMesh", (void*)Evaluation::SetEvaluationMesh }
-};
-
-static const char* samplerName[] = { "Sampler0", "Sampler1", "Sampler2", "Sampler3", "Sampler4", "Sampler5", "Sampler6", "Sampler7" };
-
-std::string ReplaceAll(std::string str, const std::string& from, const std::string& to)
-{
-	size_t start_pos = 0;
-	while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-		str.replace(start_pos, from.length(), to);
-		start_pos += to.length(); // Handles case where 'to' is a substring of 'from'
-	}
-	return str;
-}
-
 
 void Evaluation::ClearEvaluators()
 {
