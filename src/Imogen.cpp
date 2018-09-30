@@ -168,7 +168,25 @@ void NodeEdit(TileNodeEditGraphDelegate& nodeGraphDelegate, Evaluation& evaluati
 	if (ImGui::CollapsingHeader("Preview", 0, ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-		ImGui::ImageButton(ImTextureID((selNode != -1) ? evaluation.GetEvaluationTexture(selNode) : 0), ImVec2(256, 256));
+		//ImGui::ImageButton(ImTextureID((selNode != -1) ? evaluation.GetEvaluationTexture(selNode) : 0), ImVec2(256, 256));
+		if (selNode != -1)
+		{
+			if (nodeGraphDelegate.GetCallBack(selNode))
+			{
+				ImDrawList* draw_list = ImGui::GetWindowDrawList();
+				float w = ImGui::GetWindowContentRegionWidth();
+				float h = w * 9.f / 16.f;
+				ImVec2 p = ImGui::GetCursorPos() + ImGui::GetWindowPos();
+				ImGui::InvisibleButton("previewCallback", ImVec2(w, h));
+				draw_list->AddCallback((ImDrawCallback)(nodeGraphDelegate.GetCallBack(selNode)), (void*)(AddCallbackRect(ImRect(p, ImVec2(p.x+w,p.y + h)))));
+			}
+			else
+			{
+				//draw_list->AddImage(ImTextureID(delegate->GetNodeTexture(size_t(node_idx))), imgPos, imgPos + ImVec2(imgSizeComp, imgSizeComp));
+				ImGui::ImageButton(ImTextureID((selNode != -1) ? evaluation.GetEvaluationTexture(selNode) : 0), ImVec2(256, 256));
+			}
+		}
+
 		ImGui::PopStyleVar(1);
 		ImRect rc(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 		if (rc.Contains(io.MousePos))

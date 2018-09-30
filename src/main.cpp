@@ -153,6 +153,8 @@ int main(int, char**)
 		ImGui_ImplSDL2_NewFrame(window);
 		ImGui::NewFrame();
 
+		InitCallbackRects();
+
 		imogen.Show(library, nodeGraphDelegate, gEvaluation);
 
 		gEvaluation.RunEvaluation();

@@ -123,6 +123,15 @@ static std::vector<NodeOrder> mOrders;
 static std::vector<Node> nodes;
 static std::vector<NodeLink> links;
 std::vector<ImRect> mCallbackRects;
+void InitCallbackRects()
+{
+	mCallbackRects.clear();
+}
+size_t AddCallbackRect(const ImRect& rect)
+{
+	mCallbackRects.push_back(rect);
+	return mCallbackRects.size() - 1;
+}
 void NodeGraphClear()
 {
 	nodes.clear();
@@ -220,7 +229,7 @@ void NodeGraph(NodeGraphDelegate *delegate, bool enabled)
 	int node_hovered_in_list = -1;
 	int node_hovered_in_scene = -1;
 	bool open_context_menu = false;
-	mCallbackRects.clear();
+	
 
 	ImGui::BeginGroup();
 
@@ -346,12 +355,10 @@ void NodeGraph(NodeGraphDelegate *delegate, bool enabled)
 		float imgSizeComp = std::min(imgSize.x, imgSize.y);
 		
 		if (delegate->GetCallBack(node_idx))
-		{
-			mCallbackRects.push_back(ImRect(node_rect_min, node_rect_max));
-			draw_list->AddCallback((ImDrawCallback)(delegate->GetCallBack(node_idx)), (void*)(mCallbackRects.size()-1));
-		}
+			draw_list->AddCallback((ImDrawCallback)(delegate->GetCallBack(node_idx)), (void*)(AddCallbackRect(ImRect(node_rect_min, node_rect_max))));
 		else
 			draw_list->AddImage(ImTextureID(delegate->GetNodeTexture(size_t(node_idx))), imgPos, imgPos + ImVec2(imgSizeComp, imgSizeComp));
+
 		// draw/use inputs/outputs
 		bool hoverSlot = false;
 		for (int i = 0; i < 2; i++)

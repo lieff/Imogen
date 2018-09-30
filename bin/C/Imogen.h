@@ -16,7 +16,11 @@ typedef struct Evaluation_t
 
 typedef struct Mesh_t
 {
-	int dummy;
+	float bboxMin[3];
+	float bboxMax[3];
+
+	float cameraPos[3];
+	float cameraTarget[3];
 } Mesh;
 
 // call FreeImage when done

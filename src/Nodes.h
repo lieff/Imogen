@@ -27,6 +27,7 @@
 #include <vector>
 #include <stdint.h>
 
+struct ImRect;
 struct NodeGraphDelegate
 {
 	NodeGraphDelegate() : mSelectedNodeIndex(-1), mBakeTargetIndex(-1), mCategoriesCount(0), mCategories(0)
@@ -148,3 +149,5 @@ void NodeGraphAddNode(NodeGraphDelegate *delegate, int type, void *parameters, i
 void NodeGraphAddLink(NodeGraphDelegate *delegate, int InputIdx, int InputSlot, int OutputIdx, int OutputSlot);
 void NodeGraphUpdateEvaluationOrder(NodeGraphDelegate *delegate);
 void NodeGraphUpdateScrolling();
+void InitCallbackRects();
+size_t AddCallbackRect(const ImRect& rect);

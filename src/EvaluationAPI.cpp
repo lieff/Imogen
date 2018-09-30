@@ -365,8 +365,8 @@ static std::string GetFilePathExtension(const std::string &FileName) {
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 std::map<std::string, MeshOGL> mOGLMeshes;
-
-int Evaluation::ReadMesh(char *filename, Mesh *mesh)
+Mesh defMesh;
+int Evaluation::ReadMesh(char *filename, Mesh *pmesh)
 {
 	tinygltf::Model model;
 	tinygltf::TinyGLTF gltf_ctx;
@@ -420,6 +420,9 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 	}
 	oglMesh.mBufers = bufs;
 
+	pmesh->bboxMin[0] = pmesh->bboxMin[1] = pmesh->bboxMin[2] = FLT_MAX;
+	pmesh->bboxMax[0] = pmesh->bboxMax[1] = pmesh->bboxMax[2] = -FLT_MAX;
+
 	for (auto& mesh : model.meshes)
 	{
 		for (size_t i = 0; i < mesh.primitives.size(); i++) 
@@ -441,6 +444,12 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 			{
 				assert(it->second >= 0);
 				const tinygltf::Accessor &accessor = model.accessors[it->second];
+
+				for (int bb = 0; bb < 3; bb++)
+				{
+					pmesh->bboxMin[bb] = ImMin(float(accessor.minValues[bb]), pmesh->bboxMin[bb]);
+					pmesh->bboxMax[bb] = ImMax(float(accessor.maxValues[bb]), pmesh->bboxMax[bb]);
+				}
 				glBindBuffer(GL_ARRAY_BUFFER, bufs[accessor.bufferView]);
 				int size = 1;
 				if (accessor.type == TINYGLTF_TYPE_SCALAR) {
@@ -511,7 +520,20 @@ int Evaluation::ReadMesh(char *filename, Mesh *mesh)
 		}
 	}
 	mOGLMeshes[filename] = oglMesh;
-	mesh->meshIndex = 0;
+	
+	float dif[3];
+	for (int i = 0; i < 3; i++)
+	{
+		dif[i] = pmesh->bboxMax[i] - pmesh->bboxMin[i];
+		pmesh->cameraTarget[i] = (pmesh->bboxMin[i] + pmesh->bboxMax[i]) * 0.5f;
+	}
+	//float len = sqrtf(Dot(dif, dif));
+	for (int i = 0; i < 3; i++)
+	{
+		pmesh->cameraPos[i] = pmesh->cameraTarget[i] + dif[i] * 0.4f;
+	}
+	//float cameraTarget[3];
+	defMesh = *pmesh;
 	return EVAL_OK;
 }
 
@@ -581,17 +603,21 @@ void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd
 	{
 		std::string meshShader = { ""
 "#ifdef VERTEX_SHADER\n"
+"out vec3 vNormal;"
 "		void main()\n"
 "		{\n"
 "			mat4 transformViewProj = ViewProjection;\n"
 "			gl_Position = transformViewProj * vec4(inPosition.xyz, 1.0);\n"
+"vNormal = inNormal.xyz;"
 "		}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
+"in vec3 vNormal;"
 "layout(location = 0) out vec4 outPixDiffuse;"
 "		void main()\n"
 "		{\n"
-"			outPixDiffuse = vec4(1.0,0.0,1.0,1.0);\n"
+//"			outPixDiffuse = vec4(1.0,0.0,1.0,1.0);\n"
+"			outPixDiffuse = vec4(max(dot(vNormal, vec3(0.6, 0.3, 0.1)), 0.3));\n"
 "		}\n"
 "#endif\n"
 		};
@@ -613,7 +639,8 @@ void Evaluation::MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd
 	float eye[3] = { 2.f, 2.f, 2.f };
 	float tgt[3] = { 0.f, 0.f, 0.f };
 	float up[3] = { 0.f, 1.f, 0.f };
-	LookAt(eye, tgt, up, viewMat);
+	//LookAt(eye, tgt, up, viewMat);
+	LookAt(defMesh.cameraPos, defMesh.cameraTarget, up, viewMat);
 	FPU_MatrixF_x_MatrixF(viewMat, perspectiveMat, passBuffer.ViewProj);
 
 	glUseProgram(meshDisplayShader);

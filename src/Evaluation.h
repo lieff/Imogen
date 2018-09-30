@@ -78,8 +78,11 @@ struct MeshOGL
 
 struct Mesh
 {
-	int meshIndex;
+	float bboxMin[3];
+	float bboxMax[3];
 
+	float cameraPos[3];
+	float cameraTarget[3];
 };
 
 class RenderTarget
