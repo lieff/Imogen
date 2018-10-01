@@ -157,7 +157,7 @@ int main(int, char**)
 
 		imogen.Show(library, nodeGraphDelegate, gEvaluation);
 
-		gEvaluation.RunEvaluation();
+		gEvaluation.RunEvaluation(256, 256, false);
 
 		// render everything
 		glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);

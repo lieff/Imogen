@@ -42,7 +42,7 @@ int SetThumbnailImage(Image *image);
 
 // force evaluation of a target with a specified size
 // no guarantee that the resulting Image will have that size.
-void Evaluate(int target, int width, int height);
+int Evaluate(int target, int width, int height, Image *image);
 
 
 int ReadMesh(char *filename, Mesh *mesh);

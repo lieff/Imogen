@@ -45,6 +45,13 @@ enum EvaluationStatus
 	EVAL_ERR,
 };
 
+struct EvaluationInfo
+{
+	int targetIndex;
+	int inputIndices[8];
+	int forcedDirty;
+};
+
 typedef struct Image_t
 {
 	int width, height;
@@ -94,6 +101,7 @@ public:
 		fbo = 0;
 		depthbuffer = 0;
 		mWidth = mHeight = 0;
+		mRefCount = 0;
 	}
 
 	void initBuffer(int width, int height, bool hasZBuffer);
@@ -106,7 +114,7 @@ public:
 	int mWidth, mHeight;
 	TextureID fbo;
 	TextureID depthbuffer;
-
+	int mRefCount;
 	void destroy();
 
 	void checkFBO();
@@ -129,12 +137,11 @@ struct Evaluation
 	void DelEvaluationTarget(size_t target);
 	unsigned int GetEvaluationTexture(size_t target);
 	void SetEvaluationParameters(size_t target, void *parameters, size_t parametersSize);
-	void ForceEvaluation(size_t target);
+	void PerformEvaluationForNode(size_t index, int width, int height, bool force);
 	void SetEvaluationSampler(size_t target, const std::vector<InputSampler>& inputSamplers);
 	void AddEvaluationInput(size_t target, int slot, int source);
 	void DelEvaluationInput(size_t target, int slot);
-	void RunEvaluation();
-	void RunEvaluation(int target, int width, int height);
+	void RunEvaluation(int width, int height, bool forceEvaluation);
 	void SetEvaluationOrder(const std::vector<size_t> nodeOrderList);
 	void SetTargetDirty(size_t target);
 
@@ -149,11 +156,10 @@ struct Evaluation
 	static int AllocateImage(Image *image);
 	static int FreeImage(Image *image);
 	static unsigned int UploadImage(Image *image);
-	static void Evaluate(int target, int width, int height);
 	static int ReadMesh(char *filename, Mesh *mesh);
 	static int SetEvaluationMesh(int target, Mesh *mesh);
-
 	static void MeshDrawCallBack(const ImDrawList* parent_list, const ImDrawCmd* cmd); 
+	static int Evaluate(int target, int width, int height, Image *image);
 
 	// synchronous texture cache
 	// use for simple textures(stock) or to replace with a more efficient one
@@ -161,8 +167,9 @@ struct Evaluation
 protected:
 	void APIInit();
 	std::map<std::string, unsigned int> mSynchronousTextureCache;
-	
 
+	int mEvaluationMode;
+	//int mAllocatedTargets;
 	unsigned int equiRectTexture;
 	int mDirtyCount;
 
@@ -201,7 +208,7 @@ protected:
 
 	struct EvaluationStage
 	{
-		RenderTarget mTarget;
+		RenderTarget *mTarget;
 		size_t mNodeType;
 		unsigned int mParametersBuffer;
 		void *mParameters;
@@ -211,28 +218,23 @@ protected:
 		bool mbDirty;
 		bool mbForceEval;
 		int mEvaluationType; // 0 = GLSL. 1 = CPU C
+		int mUseCountByOthers;
 		void Clear();
 	};
 
-	// Transient textures
-	struct TransientTarget
-	{
-		RenderTarget mTarget;
-		int mUseCount;
-	};
 
 	std::vector<EvaluationStage> mEvaluations;
 	std::vector<size_t> mEvaluationOrderList;
 
 	void BindGLSLParameters(EvaluationStage& stage);
-	void EvaluateGLSL(const EvaluationStage& evaluation, const RenderTarget &tg, std::vector<TransientTarget*> *evaluationTransientTargets);
-	void EvaluateC(const EvaluationStage& evaluation, size_t index);
+	void EvaluateGLSL(EvaluationStage& evaluation);
+	void EvaluateC(EvaluationStage& evaluation, size_t index);
 	void FinishEvaluation();
 
-	static std::vector<TransientTarget*> mFreeTargets;
-	static int mTransientTextureMaxCount;
-	static TransientTarget* GetTransientTarget(int width, int height, int useCount);
-	static void LoseTransientTarget(TransientTarget *transientTarget);
+	std::vector<RenderTarget*> mAllocatedRenderTargets;
+	void SetEvaluationMemoryMode(int mode);
+	void RecurseGetUse(size_t target, std::vector<size_t>& usedNodes);
+
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
