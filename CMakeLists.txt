@@ -41,24 +41,33 @@ ADD_DEFINITIONS(${GTK3_CFLAGS_OTHER})
 set(PLATFORM_LIBS dl pthread ${GTK3_LIBRARIES} libtcc.a)
 endif()
 
-set(FFMPEG_LIBS avcodec.lib avdevice.lib avfilter.lib avformat.lib avutil.lib swscale.lib swresample.lib postproc.lib)
-
+if(WINDOWS)
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/SDL2-2.0.8/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext/gl3w
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext/tcc-0.9.27/
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext/NativeFileDialog/src/include/
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext/enkiTS-C-11/src/
-  ${CMAKE_CURRENT_SOURCE_DIR}/ext/ffmpeg/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/tcc-0.9.27/libtcc
 )
-
 link_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/SDL2-2.0.8/lib/x64
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/tcc-0.9.27/libtcc
   ${CMAKE_CURRENT_SOURCE_DIR}/ext/ffmpeg/lib
 )
+set(FFMPEG_LIBS avcodec.lib avdevice.lib avfilter.lib avformat.lib avutil.lib swscale.lib swresample.lib postproc.lib)
+else()
+find_package(SDL2 REQUIRED)
+include_directories(${SDL2_INCLUDE_DIRS})
+link_directories(${SDL2_LIBRARIES})
+set(FFMPEG_LIBS avcodec avdevice avfilter avformat avutil swscale swresample postproc)
+endif()
+
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/gl3w
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/NativeFileDialog/src/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/enkiTS-C-11/src/
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/ffmpeg/include
+)
+
 find_package(OpenGL)
 
 #######################################################################################
@@ -104,6 +113,8 @@ endif()
 
 if(MSVC)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+else()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
 endif()
 
 

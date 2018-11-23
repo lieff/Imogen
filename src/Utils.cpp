@@ -24,6 +24,8 @@
 //
 #include <GL/gl3w.h>    // Initialize with gl3wInit()
 #include "Utils.h"
+#include <string.h>
+#include <stdarg.h>
 
 void TexParam(TextureID MinFilter, TextureID MagFilter, TextureID WrapS, TextureID WrapT, TextureID texMode)
 {

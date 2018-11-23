@@ -35,7 +35,7 @@ namespace FFMPEGCodec
 		bool SeekSubimage(int subimage, int miplevel);
 
 		void *GetRGBData();
-		void ReadFrame(int pos);
+		bool ReadFrame(int pos);
 
 		bool Seek(int pos);
 		double Fps() const;

@@ -7,7 +7,8 @@ Currently nodes can be written in GLSL or C. Python  is coming next.
 ![Image of Imogen 0.4](https://i.imgur.com/pmliWGl.png)
 ![Image of Imogen 0.4](https://i.imgur.com/jNWsXD6.png)
 
-Use CMake and VisualStudio to build it. Only Windows system supported for now.
+Use CMake and VisualStudio to build it.
+On Ubuntu install folowing dependencies: ``sudo apt install libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavresample-dev libavutil-dev libtcc-dev libsdl2-dev``
 
 Features:
 - Node based texture editing

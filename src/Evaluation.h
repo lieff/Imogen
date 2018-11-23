@@ -28,7 +28,7 @@
 #include <vector>
 #include <map>
 #include "Library.h"
-#include "libtcc/libtcc.h"
+#include "libtcc.h"
 #include "Imogen.h"
 #include <string.h>
 #include <stdio.h>

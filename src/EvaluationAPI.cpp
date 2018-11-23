@@ -250,8 +250,13 @@ void Evaluation::APIInit()
 
 static Image_t DecodeImage(FFMPEGCodec::Decoder *decoder, int frame)
 {
-	decoder->ReadFrame(frame);
 	Image_t image;
+	memset(&image, 0, sizeof(image));
+	if (!decoder->ReadFrame(frame))
+	{
+		Log("error: ReadFrame failed\n");
+		return image;
+	}
 	image.mDecoder = decoder;
 	image.mNumMips = 1;
 	image.mNumFaces = 1;
@@ -260,6 +265,7 @@ static Image_t DecodeImage(FFMPEGCodec::Decoder *decoder, int frame)
 	image.mHeight = int(decoder->mHeight);
 	size_t lineSize = image.mWidth * 3;
 	size_t imgDataSize = lineSize * image.mHeight;
+	assert(imgDataSize < 16*1024*1024);
 	image.mBits = (unsigned char*)malloc(imgDataSize);
 
 	unsigned char *pdst = image.mBits;
@@ -284,6 +290,13 @@ Image_t EvaluationStage::DecodeImage()
 
 int Evaluation::ReadImage(const char *filename, Image *image)
 {
+#if __linux__ || __unix__
+        size_t size = strlen(filename) + 1;
+	char *filename_ = (char *)alloca(size);
+	memcpy(filename_, filename, size);
+	while (char *s = strchr(filename_, '\\')) { *s = '/'; };
+	filename = filename_;
+#endif
 	int components;
 	unsigned char *bits = stbi_load(filename, &image->mWidth, &image->mHeight, &components, 0);
 	if (!bits)
@@ -293,7 +306,7 @@ int Evaluation::ReadImage(const char *filename, Image *image)
 		{
 			auto decoder = gEvaluation.FindDecoder(filename);
 			*image = ::DecodeImage(decoder, gEvaluationTime);
-			return EVAL_OK;
+			return image->mWidth ? EVAL_OK : EVAL_ERR;
 		}
 		cmft::imageTransformUseMacroInstead(&img, cmft::IMAGE_OP_FLIP_X, UINT32_MAX);
 		image->mBits = (unsigned char*)img.m_data;
@@ -619,7 +632,6 @@ struct CFunctionTaskSet : enki::ITaskSet
 	{
 		mFunction(mBuffer);
 		free(mBuffer);
-		delete this;
 	}
 	jobFunction mFunction;
 	void *mBuffer;
@@ -638,7 +650,6 @@ struct CFunctionMainTask : enki::IPinnedTask
 	{
 		mFunction(mBuffer);
 		free(mBuffer);
-		delete this;
 	}
 	jobFunction mFunction;
 	void *mBuffer;
@@ -736,6 +747,7 @@ unsigned int Evaluation::GetTexture(const std::string& filename)
 	if (ReadImage(filename.c_str(), &image) == EVAL_OK)
 	{
 		textureId = UploadImage(&image, 0);
+		FreeImage(&image);
 	}
 
 	mSynchronousTextureCache[filename] = textureId;

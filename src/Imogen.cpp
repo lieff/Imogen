@@ -461,7 +461,6 @@ struct DecodeThumbnailTaskSet : enki::ITaskSet
 			g_TS.WaitforTask(&uploadTexTask);
 			Evaluation::FreeImage(&image);
 		}
-		delete this;
 	}
 	ASyncId mIdentifier;
 	std::vector<uint8_t> *mSrc;
@@ -490,7 +489,6 @@ struct EncodeImageTaskSet : enki::ITaskSet
 				}
 			}
 		}
-		delete this;
 	}
 	ASyncId mMaterialIdentifier;
 	ASyncId mNodeIdentifier;
@@ -517,7 +515,6 @@ struct DecodeImageTaskSet : enki::ITaskSet
 			g_TS.AddPinnedTask(&uploadTexTask);
 			g_TS.WaitforTask(&uploadTexTask);
 		}
-		delete this;
 	}
 	ASyncId mIdentifier;
 	std::vector<uint8_t> *mSrc;
@@ -703,6 +700,12 @@ void UpdateNewlySelectedGraph(TileNodeEditGraphDelegate &nodeGraphDelegate, Eval
 		for (size_t i = 0; i < material.mMaterialNodes.size(); i++)
 		{
 			MaterialNode& node = material.mMaterialNodes[i];
+			assert(node.mType < gMetaNodes.size());
+			if (nodeGraphDelegate.ComputeNodeParametersSize(node.mType) != node.mParameters.size())
+			{
+				Log("MaterialNode parameters size mismatch (type=%s)\n", node.mTypeName.c_str());
+				node.mParameters.resize(nodeGraphDelegate.ComputeNodeParametersSize(node.mType));
+			}
 			NodeGraphAddNode(&nodeGraphDelegate, node.mType, node.mParameters.data(), node.mPosX, node.mPosY, node.mFrameStart, node.mFrameEnd);
 			if (!node.mImage.empty())
 			{

@@ -79,8 +79,13 @@ template<bool doWrite> struct Serialize
 		{
 			uint32_t len;
 			fread(&len, sizeof(uint32_t), 1, fp);
-			data.resize(len);
-			fread(&data[0], len, 1, fp);
+			if (len > 1)
+			{
+				data.resize(len - 1);
+				fread(&data[0], len, 1, fp);
+				assert(data.length() == (len - 1));
+			} else
+				data = "";
 		}
 	}
 	template<typename T> void Ser(std::vector<T>& data)

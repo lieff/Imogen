@@ -53,10 +53,10 @@ static const EValuationFunction evaluationFunctions[] = {
 	{ "SetProcessing", (void*)Evaluation::SetProcessing},
 	{ "Job", (void*)Evaluation::Job },
 	{ "JobMain", (void*)Evaluation::JobMain },
-	{ "memmove", memmove },
-	{ "strcpy", strcpy },
-	{ "strlen", strlen },
-	{ "fabsf", fabsf },
+	{ "memmove", (void*)memmove },
+	{ "strcpy", (void*)strcpy },
+	{ "strlen", (void*)strlen },
+	{ "fabsf", (void*)fabsf }
 };
 
 static void libtccErrorFunc(void *opaque, const char *msg)
@@ -161,7 +161,7 @@ void Evaluators::SetEvaluators(const std::vector<EvaluatorFile>& evaluatorfilena
 			noLib[2] = 1; // no stdlib
 
 			tcc_set_error_func(s, 0, libtccErrorFunc);
-			tcc_add_include_path(s, "C\\");
+			tcc_add_include_path(s, "C");
 			tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
 
 			if (tcc_compile_string(s, program.mText.c_str()) != 0)

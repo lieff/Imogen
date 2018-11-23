@@ -322,10 +322,10 @@ namespace FFMPEGCodec
 		return true;
 	}
 
-	void Decoder::ReadFrame(int frame)
+	bool Decoder::ReadFrame(int frame)
 	{
 		if (!m_codec_context)
-			return;
+			return false;
 		if (m_last_decoded_pos + 1 != frame)
 		{
 			Seek(frame);
@@ -381,12 +381,13 @@ namespace FFMPEGCodec
 					);
 					m_last_decoded_pos = current_frame;
 					av_free_packet(&pkt);
+					m_read_frame = true;
 					break;
 				}
 			}
 			av_free_packet(&pkt);
 		}
-		m_read_frame = true;
+		return m_read_frame;
 	}
 
 	int64_t FrameToPts(AVStream* pavStream, int frame)
@@ -623,7 +624,8 @@ namespace FFMPEGCodec
 	void Encoder::Remux() 
 	{
 		AVFormatContext *ifmt_ctx = NULL, *ofmt_ctx = NULL;
-		int err;
+		AVStream *inVideoStream = NULL, *outVideoStream = NULL;
+		int err, ts = 0;
 
 		if ((err = avformat_open_input(&ifmt_ctx, VIDEO_TMP_FILE, 0, 0)) < 0) {
 			Debug("Failed to open input file for remuxing", err);
@@ -638,8 +640,8 @@ namespace FFMPEGCodec
 			goto end;
 		}
 
-		AVStream *inVideoStream = ifmt_ctx->streams[0];
-		AVStream *outVideoStream = avformat_new_stream(ofmt_ctx, NULL);
+		inVideoStream = ifmt_ctx->streams[0];
+		outVideoStream = avformat_new_stream(ofmt_ctx, NULL);
 		if (!outVideoStream) {
 			Debug("Failed to allocate output video stream", 0);
 			goto end;
@@ -661,7 +663,6 @@ namespace FFMPEGCodec
 		}
 
 		AVPacket videoPkt;
-		int ts = 0;
 		while (true) {
 			if ((err = av_read_frame(ifmt_ctx, &videoPkt)) < 0) {
 				break;

@@ -55,6 +55,7 @@ protected:
 	{
 		EvaluatorScript() : mProgram(0), mCFunction(0), mMem(0), mNodeType(-1) {}
 		EvaluatorScript(const std::string & text) : mText(text), mProgram(0), mCFunction(0), mMem(0), mNodeType(-1) {}
+		~EvaluatorScript() { if (mMem) free(mMem); };
 		std::string mText;
 		unsigned int mProgram;
 		int(*mCFunction)(void *parameters, void *evaluationInfo);
